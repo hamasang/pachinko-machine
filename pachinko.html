@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #gameBoard {
+            width: 300px;
+            height: 600px;
+            position: relative;
+            border: 1px solid black;
+            margin-bottom: 20px;
+            background-image: url("./GameData/img/background.svg");
+            background-repeat: no-repeat;
+            background-size:cover;
+        }
+
+        #gridboard {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(20, 1fr);
+            height: 100%;
+            position: absolute;
+            top: 50px;
+        }
+
+        .pin {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: black;
+            position: absolute;
+        }
+
+        #launcher {
+            margin: 0 auto;
+            padding: 10px 20px;
+            width: 300px;
+        }
+
+        #winZone, #loseZone {
+            width: 100%;
+            height: 50px;
+            position: absolute;
+            bottom: 0;
+        }
+
+        #winZone {
+            background-image: url("./GameData/img/wood.svg");
+        }
+
+        #loseZone {
+            background-image: url("./GameData/img/pocha.svg");
+            background-repeat: no-repeat;
+            top: 0;
+        }
+
+        .winCell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid transparent;
+            float: left;
+        }
+
+        .winner {
+            background-color: gold;
+            border-color: black;
+        }
+
+        .sideWall {
+            width: 5px;
+            height: 50px;
+            background-color: blue;
+            position: absolute;
+            bottom: 0;
+        }
+
+        .leftWall {
+            left: 0;
+        }
+
+        .rightWall {
+            right: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameBoard">
+        <div id="winZone">
+            <div class="sideWall leftWall"></div>
+            <div class="sideWall rightWall"></div>
+        </div>
+        <div id="gridboard"></div>
+        <div id="loseZone"></div>
+    </div>
+    <div id="scoreBoard">
+        <p>넣은 코인 수: <span id="coinCount">0</span></p>
+        <p>당첨 점수: <span id="winScore">0</span></p>
+    </div>
+    <button id="launcher">발사!</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const gameBoard = document.getElementById('gameBoard');
+            const gridBoard = document.getElementById('gridboard');
+            gridBoard.style.width = gameBoard.offsetWidth + 'px';
+            gridBoard.style.height = gameBoard.offsetHeight - 100 + 'px';
+            const launcher = document.getElementById('launcher');
+            createPins(60);
+            const pins = document.getElementsByClassName('pin');
+
+            function createPins(numberOfPins) {
+                const rows = 20;
+                const cols = 10;
+                let existingPins = [];
+
+                for (let i = 0; i < numberOfPins; i++) {
+                    let pin = document.createElement('div');
+                    pin.className = 'pin';
+                    let randomRow = Math.floor(Math.random() * rows);
+                    let randomCol = Math.floor(Math.random() * cols);
+                    pin.style.top = (randomRow * (gridBoard.offsetHeight / rows)) + 'px';
+                    pin.style.left = (randomCol * (gridBoard.offsetWidth / cols)) + 'px';
+                    
+                    gridBoard.appendChild(pin);
+                }
+            }
+
+            function isOverlapping(pin1, pin2) {
+                let rect1 = pin1.getBoundingClientRect();
+                let rect2 = pin2.getBoundingClientRect();
+
+                return !(rect1.right < rect2.left || rect1.left > rect2.right || 
+                        rect1.bottom < rect2.top || rect1.top > rect2.bottom);
+            }
+
+            function createCoin() {
+                let coin = document.createElement('div');
+                coin.style.width = '10px';
+                coin.style.height = '10px';
+                coin.style.borderRadius = '50%';
+                coin.style.backgroundColor = 'gold';
+                coin.style.position = 'absolute';
+                coin.style.top = '0';
+                coin.style.left = '50%';
+                return coin;
+            }
+
+            launcher.addEventListener('click', function () {
+                let coin = createCoin();
+                gameBoard.appendChild(coin);
+                moveCoin(coin);
+                coinCount++;
+                updateScoreBoard();
+            });
+
+
+            function moveCoin(coin) {
+                let posX = gameBoard.offsetWidth / 2;
+                let posY = 0;
+                let velocityX = (Math.random() - 0.5) * 5;
+                let velocityY = 0;
+                let gravity = 0.1;
+
+                function frame() {
+                    velocityY += gravity;
+                    posX += velocityX;
+                    posY += velocityY;
+
+                    if (posX < 0 || posX > gameBoard.offsetWidth - 10) {
+                        velocityX *= -1;
+                    }
+
+                    if (posY < gameBoard.offsetHeight) {
+                        coin.style.left = posX + 'px';
+                        coin.style.top = posY + 'px';
+
+                        for (let pin of pins) {
+                            if (isColliding(coin, pin)) {
+                                velocityY *= -0.7;
+                                velocityX = (Math.random() > 0.5 ? 1 : -1) * 2;
+                                break;
+                            }
+                        }
+
+                        // 왼쪽 벽과의 충돌 감지
+                        if (isColliding(coin, document.querySelector('.leftWall'))) {
+                            velocityX = Math.abs(velocityX);
+                        }
+                        // 오른쪽 벽과의 충돌 감지
+                        if (isColliding(coin, document.querySelector('.rightWall'))) {
+                            velocityX = -Math.abs(velocityX);
+                        }
+
+                        if (isInsideZone(coin, document.querySelector('.winner'))) {
+                            return;
+                        }
+
+                        requestAnimationFrame(frame);
+                    }
+                }
+
+                frame();
+            }
+
+            function isColliding(coin, wall) {
+                let coinRect = coin.getBoundingClientRect();
+                let wallRect = wall.getBoundingClientRect();
+
+                return !(coinRect.right < wallRect.left || 
+                        coinRect.left > wallRect.right || 
+                        coinRect.bottom < wallRect.top || 
+                        coinRect.top > wallRect.bottom);
+            }
+
+            // 코인 수와 당첨 점수 변수 초기화
+            let coinCount = 0;
+            let winScore = 0;
+            updateScoreBoard();
+
+            function updateScoreBoard() {
+                document.getElementById('coinCount').textContent = coinCount;
+                document.getElementById('winScore').textContent = winScore;
+            }
+
+            function isInsideZone(coin, zone) {
+                let coinRect = coin.getBoundingClientRect();
+                let zoneRect = zone.getBoundingClientRect();
+                        
+                if (!(coinRect.right < zoneRect.left ||
+                    coinRect.left > zoneRect.right ||
+                    coinRect.top > zoneRect.bottom) &&
+                    coinRect.bottom >= zoneRect.bottom) {
+                    playDingSound();
+                    winScore++; // 당첨 점수 증가
+                    updateScoreBoard(); // 점수판 업데이트
+                    return true;
+                }
+                return false;
+            }
+
+            function createWinZone() {
+                const winZone = document.getElementById('winZone');
+                const winCell = document.createElement('div');
+                winCell.className = 'winCell winner';
+                winZone.appendChild(winCell);
+                // 중앙에 위치
+                winCell.style.left = (winZone.offsetWidth - winCell.offsetWidth) / 2 + 'px';
+
+                // 왼쪽과 오른쪽 벽의 위치 조정
+                const leftWall = document.querySelector('.leftWall');
+                const rightWall = document.querySelector('.rightWall');
+                leftWall.style.left = winCell.offsetLeft - leftWall.offsetWidth + 'px';
+                rightWall.style.left = winCell.offsetLeft + winCell.offsetWidth + 'px';
+            }
+
+            createWinZone();
+        });
+
+        function playDingSound() {
+            if (!window.AudioContext) {
+                alert("이 브라우저는 Web Audio API를 지원하지 않습니다.");
+                return;
+            }
+
+            const audioCtx = new window.AudioContext();
+
+            // 두 개의 연속된 음을 재생하는 함수
+            function playTone(frequency, startTime, duration) {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // 볼륨 조절
+
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
+            }
+
+            // 첫 번째 음 (높은 음)
+            playTone(1047, audioCtx.currentTime, 0.1); // C6 음, 0.1초 동안
+            // 두 번째 음 (더 높은 음)
+            playTone(1318.51, audioCtx.currentTime + 0.1, 0.1); // E6 음, 0.1초 동안
+        }
+    </script>
+</body>
+</html>
